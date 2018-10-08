@@ -18,7 +18,6 @@ window.addEventListener("load", function() {
         statusInfo = document.getElementById("status-info"),
         outputSelect = document.getElementById("output-select"),
         outputLog = document.getElementById("output-log"),
-        outputLogOuter = document.getElementById("output-log-outer"),
         outputLogTab = document.querySelector("#tab-container a[href='#output-log-outer']"),
         registerLog = document.getElementById("register-log"),
         registerLogOuter = document.getElementById("register-log-outer"),
@@ -40,6 +39,7 @@ window.addEventListener("load", function() {
         binaryStringGroupLength: 4,
         defaultInputMode: 'HEX',
         defaultOutputMode: 'HEX',
+        defaultTheme: 'lighttheme',
         minDatapathDelay: 1000,
     };
 
@@ -51,6 +51,8 @@ window.addEventListener("load", function() {
         programCodeMirror.clearHistory();
         saveFile();
         localStorage.setItem("marie-program",null);
+        sessionStorage.setItem('savedFileID',null); //resets GAPI FileInfo upon New File
+        sessionStorage.setItem("parentID",null); //resets GAPI FileInfo upon New File
         $("#saved-status").text("New file");
         location.reload(); //reloads
     }
@@ -63,6 +65,7 @@ window.addEventListener("load", function() {
             defaultInputMode = localStorage.getItem("defaultInputMode-value"),
             defaultOutputMode = localStorage.getItem("defaultOutputMode-value"),
             binaryStringGroupLength = localStorage.getItem("binaryStringGroup-Length"),
+            defaultTheme = localStorage.getItem('theme'),
             minDatapathDelay = localStorage.getItem("min-datapath-delay");
 
         if(["false", "true"].indexOf(autocomplete) >= 0) {
@@ -79,6 +82,10 @@ window.addEventListener("load", function() {
 
         if(defaultInputMode !== null) {
             prefs.defaultInputMode = defaultInputMode;
+        }
+
+        if(defaultTheme !== null) {
+            prefs.defaultTheme = defaultTheme;
         }
 
         if(defaultOutputMode !== null) {
@@ -109,8 +116,7 @@ window.addEventListener("load", function() {
         localStorage.setItem("binaryStringGroup-Length", prefs.binaryStringGroupLength);
         localStorage.setItem("defaultInputMode-value", prefs.defaultInputMode);
         localStorage.setItem("defaultOutputMode-value", prefs.defaultOutputMode);
-
-        updatePrefs();
+        localStorage.setItem("theme",prefs.defaultTheme);
     }
 
     function updatePrefs() {
@@ -137,6 +143,14 @@ window.addEventListener("load", function() {
             outputType = BIN;
         }
 
+        if(prefs.defaultTheme == "lighttheme") {
+            theme = 'light';
+        } else if(prefs.defaultTheme == 'darktheme'){
+            theme = 'dark';
+        }
+
+        datapath.setTheme(theme);
+
         if(changedInputMode) {
             $('#input-type').val(prefs.defaultInputMode);
             changedInputMode = false;
@@ -145,6 +159,11 @@ window.addEventListener("load", function() {
         if(changedOutputMode) {
             $("#output-select").val(prefs.defaultOutputMode);
             changedOutputMode = false;
+        }
+
+        if(changedTheme) {
+          $('#themeSelect').val(prefs.defaultTheme);
+          changedTheme = false;
         }
     }
 
@@ -165,6 +184,8 @@ window.addEventListener("load", function() {
         outputType = HEX,
         changedInputMode = true,
         changedOutputMode = true,
+        theme = 'light',
+        changedTheme = true,
         datapath = new DataPath(datapathEle, datapathInstructionElement),
         outputList = [],
         saveTimeout = null,
@@ -190,6 +211,10 @@ window.addEventListener("load", function() {
         lineNumbers: true,
         gutters: ["CodeMirror-linenumbers", "breakpoints"]
     });
+
+    if(theme === "dark") {
+        programCodeMirror.setOption('theme', 'dracula');
+    }
 
     programCodeMirror.on("gutterClick", function(cm, n) {
         var info = cm.lineInfo(n);
@@ -401,15 +426,20 @@ window.addEventListener("load", function() {
     function convertOutput(value) {
         switch(outputType) {
             case HEX:
-                return Utility.hex(value);
+                return document.createTextNode(Utility.hex(value));
             case DEC:
-                return value;
+                return document.createTextNode(value);
             case UNICODE:
-                return String.fromCharCode(value);
+                if (value===10) {
+                  return document.createElement("br");
+                } else {
+                  return document.createTextNode(String.fromCharCode(value));
+                }
+                break;
             case BIN:
-                return Utility.uintToBinGroup(value, 16, prefs.binaryStringGroupLength);
+                return document.createTextNode(Utility.uintToBinGroup(value, 16, prefs.binaryStringGroupLength));
             default:
-                return "Invalid output type.";
+                return document.createTextNode("Invalid output type.");
         }
     }
 
@@ -419,8 +449,10 @@ window.addEventListener("load", function() {
         }
 
         for(var i = 0; i < outputList.length; i++) {
-            outputLog.appendChild(document.createTextNode(convertOutput(outputList[i])));
-            outputLog.appendChild(document.createElement("br"));
+            outputLog.appendChild(convertOutput(outputList[i]));
+            if (outputType!==UNICODE) {
+              outputLog.appendChild(document.createElement("br"));
+            }
         }
     }
 
@@ -644,6 +676,10 @@ window.addEventListener("load", function() {
 
         $('#input-error').hide();
 
+        if (getInputFromInputList(output)) {
+            return;
+        }
+
         $('#input-dialog').popoverX('show');
 
         $('#input-dialog').off('hidden.bs.modal');
@@ -673,16 +709,70 @@ window.addEventListener("load", function() {
         });
     }
 
+    function getInputFromInputList(output) {
+        var inputList = $('#input-list').val().trim();
+
+        // get the first line
+        var value = inputList.split('\n')[0];
+
+        // if the first line is empty, return to user prompted input
+        if (value === "") {
+            return false;
+        }
+
+        // delete the used input line
+        $('#input-list').val(inputList.split('\n').slice(1).join('\n'));
+
+        // timeout because you get an error from the generator
+        // TypeError: Generator is already running
+        window.setTimeout(function() {
+            // get the type
+            var type = $('#input-list-select').val();
+            switch (type) {
+                case ("HEX"):
+                    value = parseInt(value, 16);
+                    break;
+                case ("DEC"):
+                    value = parseInt(value, 10);
+                    break;
+                case ("UNICODE"):
+                    value = value.charCodeAt(0);
+                    break;
+                case("BIN"):
+                    value = parseInt(value, 2);
+                    break;
+            }
+
+            // if it's a numeric value, use it as input
+            if (!isNaN(value)) {
+                output(value);
+                runLoop(microStepping);
+                stopWaiting();
+            }
+            // show error if not
+            else {
+                $('#input-error').show({
+                    step: function() {
+                        $('#input-dialog').popoverX("show");
+                    }
+                });
+            }
+        }, 0);
+        return true;
+    }
+
     function outputFunc(value) {
-        var shouldScrollToBottomOutputLog = outputLogOuter.getAttribute("data-stick-to-bottom") == "true";
+        var shouldScrollToBottomOutputLog = outputLog.getAttribute("data-stick-to-bottom") == "true";
 
         outputList.push(value);
 
-        outputLog.appendChild(document.createTextNode(convertOutput(value)));
-        outputLog.appendChild(document.createElement("br"));
+        outputLog.appendChild(convertOutput(value));
+        if (outputType!==UNICODE) {
+          outputLog.appendChild(document.createElement("br"));
+        }
 
         if(shouldScrollToBottomOutputLog) {
-            outputLog.scrollTop = outputLogOuter.scrollHeight;
+            outputLog.scrollTop = outputLog.scrollHeight;
         }
     }
 
@@ -780,10 +870,18 @@ window.addEventListener("load", function() {
             if (interval)
                 window.clearInterval(interval);
 
+            var realDelay = delay;
+            var itersPerLoop = 1;
+            if (realDelay < 10) {
+                realDelay = 10;
+                itersPerLoop = 10;
+            }
             // Don't pass in setInterval callback arguments into runLoop function.
             interval = window.setInterval(function() {
-                runLoop();
-            }, delay);
+                for (var i=0; i<itersPerLoop; i++) {
+                    runLoop();
+                }
+            }, realDelay);
 
             runButton.textContent = "Pause";
             runButton.disabled = false;
@@ -809,7 +907,7 @@ window.addEventListener("load", function() {
         catch (e) {
             // prevents catastrophic failure if an error occurs (whether it is MARIE or some other JavaScript error)
             setStatus(e.toString(), true);
-            
+
             stepBackButton.disabled = true;
 
             stop();
@@ -912,7 +1010,8 @@ window.addEventListener("load", function() {
             });
 
             sim.setEventListener("regwrite", function(e) {
-                document.getElementById(e.register).textContent = Utility.hex(e.newValue, e.register == "mar" || e.register == "pc" ? 3 : 4);
+                document.getElementById(e.register).textContent = Utility.hex(e.newValue, e.register == "mar" || e.register == "pc" ? 3 : 4);                
+                $("#"+e.register).attr("title","DEC "+e.newValue).tooltip('fixTitle');
 
                 if(!running || delay >= prefs.minDatapathDelay) {
                     datapath.setRegister(e.register, Utility.hex(e.newValue, e.register == "mar" || e.register == "pc" ? 3 : 4));
@@ -1274,6 +1373,7 @@ window.addEventListener("load", function() {
     $("#prefs").click(function() {
         changedInputMode = false;
         changedOutputMode = false;
+        changedTheme = false;
 
         $("#save-changes").prop("disabled", true);
         $("#prefs-invalid-input-error").hide();
@@ -1286,6 +1386,7 @@ window.addEventListener("load", function() {
         $("#bstringLength").val(prefs.binaryStringGroupLength);
         $("#defaultInputModeSelect").val(prefs.defaultInputMode);
         $("#defaultOutputModeSelect").val(prefs.defaultOutputMode);
+        $('#themeSelect').val(prefs.defaultTheme);
         $("#prefs-modal").modal("show");
     });
 
@@ -1301,7 +1402,7 @@ window.addEventListener("load", function() {
         $("#save-changes").prop("disabled", false);
     });
 
-    $("#bstringLength, #defaultOutputModeSelect, #defaultInputModeSelect").change(function(e) {
+    $("#bstringLength, #defaultOutputModeSelect, #defaultInputModeSelect, #themeSelect").change(function(e) {
         $("#save-changes").prop("disabled", false);
 
         var target = $(e.target);
@@ -1322,6 +1423,7 @@ window.addEventListener("load", function() {
         var stringLength = parseInt($("#bstringLength").val());
         var defaultInputMode = $("#defaultInputModeSelect").val();
         var defaultOutputMode = $("#defaultOutputModeSelect").val();
+        var defaultTheme = $('#themeSelect').val();
         if(isNaN(minDelay) || isNaN(maxDelay) || minDelay >= maxDelay || minDelay < 0 || maxDelay < 0) {
             $("#prefs-invalid-input-error").show();
             return;
@@ -1342,9 +1444,11 @@ window.addEventListener("load", function() {
         prefs.binaryStringGroupLength = stringLength;
         prefs.defaultInputMode = defaultInputMode;
         prefs.defaultOutputMode = defaultOutputMode;
+        prefs.defaultTheme = defaultTheme;
         setPrefs();
 
         $("#prefs-modal").modal("hide");
+        location.reload();
     });
 
     $("#set-to-defaults").click(function() {
@@ -1353,10 +1457,33 @@ window.addEventListener("load", function() {
     });
 
      $("#download").click( function(){
-        var text = programCodeMirror.getValue();
-        var filename = "code";
-        var blob = new Blob([text], {type: "text/plain;charset=utf-8"});
-        saveAs(blob, filename+".mas");
+       $('#dFileModal').modal('show');
+    });
+
+    $('#downloadbtn').click( function(){
+         var text = programCodeMirror.getValue();
+         var filename = $("#name").val();
+         var fileType = $('#downloadMode option:selected').val();
+
+         var extension = "";
+
+         if(filename === "" || filename === null){
+           filename = "code";
+           console.warn("No File Name detected reverting to code+extension");
+         }
+         if (fileType === "mas"){
+           extension = ".mas";
+
+         }
+         else if (fileType === "txt"){
+           extension = ".txt";
+         }
+         var fullFileName = filename + extension;
+         console.log(fullFileName);
+
+         var blob = new Blob([text], {type: "text/plain;charset=utf-8"});
+         saveAs(blob, fullFileName);
+         $('#dFileModal').modal('hide');
     });
 
     $("#newfilebtn").click(function() {
@@ -1372,10 +1499,7 @@ window.addEventListener("load", function() {
     });
 
     $("#exportfile").click( function() {
-        var text = programCodeMirror.getValue();
-        var filename = "code";
-        var blob = new Blob([text], {type: "text/plain;charset=utf-8"});
-        saveAs(blob, filename+".mas");
+      $('#dFileModal').modal('show');
     });
 
     $("#fileInput").change(function() {
@@ -1472,8 +1596,6 @@ window.addEventListener("load", function() {
         }
 
         $("#input-dialog").popoverX("refreshPosition");
-
-
     }
 
     handleDatapathUI();
@@ -1491,17 +1613,72 @@ window.addEventListener("load", function() {
         $('#tosModal').modal('hide');
     });
 
-    
 
+    $('#displayVersion').click(function(){
+        $('#currentVersion').modal('show');
+    });
+
+    $('#login').click(function(){
+        onApiLoad();
+    });
+
+
+    $('#gdrive').click(function(){
+      NProgress.start();
+      createPicker();
+    });
+
+    $('#o').click(function(){
+        var code = sessionStorage.getItem('gdrivefile');
+        NProgress.inc(0.1);
+        if(code !== ''){
+          programCodeMirror.setValue(code);
+          NProgress.inc(0.1);
+          console.info('Sucessfully loaded file from Google Drive');
+          sessionStorage.setItem('gdrivefile','');
+        } else {
+          console.error('Empty file loaded, aborting.');
+        }
+        NProgress.done();
+    });
+
+    $('#opensgdModal').click(function(){
+      NProgress.start();
+      var fileID = sessionStorage.getItem('savedFileID');
+      var folderID = sessionStorage.getItem("parentID");
+      var code = programCodeMirror.getValue();
+      sessionStorage.setItem('code',code);
+
+      NProgress.inc(0.1);
+      // case when saving for first time
+      if (fileID === "" || fileID === null || folderID === null || folderID === "" ){
+        $('#savetoGDriveModal').modal('show'); //Toggle Modal if file is not actually saved to GoogleDrive
+      } else {                                   //otherwise call a direct function
+        saveToGDrive(fileID,folderID,code);
+        console.log(programCodeMirror.getValue());
+      }
+    });
+
+
+
+    $('#saveToGDrive').click(function(){
+      $('#savetoGDriveModal').modal('hide'); //hide Modal if file is not actually saved to GoogleDrive
+      folderPicker();
+    });
 });
 
 $(document).ready(function(){
     if(localStorage.getItem("tosAgreed") === null || localStorage.getItem("tosAgreed") === 0){
         $('#tosModal').modal('show');
     }
-});
+    $('[data-toggle="tooltip"]').tooltip();
 
-//enabling bootstrap-tooltip
-$(document).ready(function(){
-    $('[data-toggle="tooltip"]').tooltip(); 
+    $('#nameLink').hide();
+    $('#gdrive').hide();
+    $('#logOut').hide();
+    $('#opensgdModal').hide();
+
+
+
+
 });

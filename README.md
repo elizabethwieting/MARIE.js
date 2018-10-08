@@ -2,7 +2,7 @@
 
 [![Build Status](https://travis-ci.org/MARIE-js/MARIE.js.svg?branch=master)](https://travis-ci.org/MARIE-js/MARIE.js) [![Gitter chat](https://badges.gitter.im/MARIE-js/gitter.png)](https://gitter.im/MARIE-js/Lobby) [![npm version](https://badge.fury.io/js/npm.svg)](https://badge.fury.io/js/npm)
 ==============
-Current version: `0.9.4`
+Current version: `1.2.0`
 
 MARIE.js is an implementation of a simulator for a 'Machine Architecture that is Really Intuitive and Easy'
 from [The Essentials of Computer Organization and Architecture](https://books.google.com.au/books/about/The_Essentials_of_Computer_Organization.html?id=3kQoAwAAQBAJ&redir_esc=y) (Linda Null, Julia Lobur) in JavaScript.
@@ -26,22 +26,36 @@ run the code. You'll need to install `npm`, then run the following commands to
 install dependencies, build the release version, and run a localhost server as
 well as opening the default browser directing to the localhost site.
 
-    sudo npm install -g grunt-cli
-
-    cd /path/to/repo/MARIE.js
-    npm install
-    grunt
-
+    npm run start
+    
 ## Development
 To test and build the development version of MARIE.js, run the following
 commands.
 
+    npm run start
+
+    # or if you are using yarn
+
+    yarn start
+    
+## Building
+To build just run
+
+    npm run build
+
+    # or if you are using yarn
+    
+    yarn build
+
+
+### Electron Mode
     cd /path/to/repo/MARIE.js
     npm install
     npm install grunt-cli
     npm install electron      //for electron branch
     grunt test # you need JRE 8 for this command
     grunt bar-dev
+
 
 ## To Do List
 To view full to-do list visit: [https://github.com/MARIE-js/MARIE.js/issues/162](https://github.com/MARIE-js/MARIE.js/issues/162)
@@ -63,10 +77,18 @@ pull request to this repository. We'll review the pull request, and if it is
 accepted, we'll add your name to our license.
 
 ## Recommended Commit/Pull Request Tags
-    [D] Dependency Update
-    [HF] HotFix
-    [P] Patch
-    [UI] User Input (including css) Update
+    [HF]    HotFix
+    [P]     Patch
+    [PROV]  Provisioning Update
+    [CU]    Cumulative Update
+    [MU]    Migration Updates
+
+    [D]     Dependency Update
+    [DOC]   Documentation Updates
+
+    [UI]    User Input/Ouput Update
+    [UX]    User Experience Update
+    [GAPI]  Google API Updates
 
     [O] Other
 
@@ -74,7 +96,7 @@ accepted, we'll add your name to our license.
 
 ### The MIT License (MIT)
 
-Copyright (c) 2016 Jason Nguyen, Saurabh Joshi, Eric Jiang, Erfan Norozi
+Copyright &copy; 2017 Jason Nguyen, Saurabh Joshi, Eric Jiang, Erfan Norozi, Josh Nelsson-Smith, Guido Tack
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
 
